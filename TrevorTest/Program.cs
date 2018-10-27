@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
 
@@ -21,8 +22,10 @@ namespace TrevorTest
             // Loop through each line of the file
             String line;
             Match m;
+            Stopwatch sw = Stopwatch.StartNew();
             try
             {
+                
                 //Pass the file path and file name to the StreamReader constructor
                 StreamReader sr = new StreamReader("log_big.log");
 
@@ -48,10 +51,10 @@ namespace TrevorTest
 
                     
                     //Output values:
-                    Console.WriteLine($"Time: ");
-                    Console.WriteLine($"Latest Player Count: {latestPlayerCount}");
-                    Console.WriteLine($"Latest Player Status: {latestPlayerStatus.ToString()}");
-                    Console.WriteLine($"Latest Server: {latestServerName}");
+                    //Console.WriteLine($"Time: ");
+                    //Console.WriteLine($"Latest Player Count: {latestPlayerCount}");
+                    //Console.WriteLine($"Latest Player Status: {latestPlayerStatus.ToString()}");
+                    //Console.WriteLine($"Latest Server: {latestServerName}");
 
                     //Determine if the player count has been >70 for more than 2 minutes and the player has been in the server for at least 5 minutes
 
@@ -61,7 +64,6 @@ namespace TrevorTest
 
                 //close the file
                 sr.Close();
-                Console.ReadLine();
             }
             catch (Exception e)
             {
@@ -71,6 +73,12 @@ namespace TrevorTest
             finally
             {
                 Console.WriteLine("Executing finally block.");
+                sw.Stop();
+                Console.WriteLine($"Latest Player Count: {latestPlayerCount}");
+                Console.WriteLine($"Latest Player Status: {latestPlayerStatus.ToString()}");
+                Console.WriteLine($"Latest Server: {latestServerName}");
+                Console.WriteLine($"Execution took: {sw.Elapsed}");
+                Console.ReadLine();
             }
         }
 
