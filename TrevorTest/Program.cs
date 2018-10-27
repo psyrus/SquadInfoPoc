@@ -2,24 +2,26 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
-
 using System.Threading; // needed for AutoResetEvent FileSystemWatcher stuff
 
 namespace TrevorTest
 {
     class Program
     {
-
         static void Main(string[] args)
         {
-
             // info on 'tail'ing a file
             // https://stackoverflow.com/questions/3791103/c-sharp-continuously-read-file
             var wh = new AutoResetEvent(false); // Notifies a waiting thread that an event has occured
             var fsw = new FileSystemWatcher(".");
             fsw.Filter = "log_big.log";
             fsw.EnableRaisingEvents = true;
-            fsw.Changed += (s,e) => wh.Set();
+            fsw.Changed += (s, e) => {
+                if(e.ChangeType == WatcherChangeTypes.Changed)
+                {
+                    wh.Set();
+                }
+            };
 
             Regex playersCount = new Regex(@"\[(.*?)\]\[.*?\].*?LogDiscordRichPresence: Number of players changed to (\d+)");
             Regex playerStatus = new Regex(@"\[(.*?)\]\[.*?\].*?ASQPlayerController::ChangeState\(\): PC=(.*?) OldState=(.*?) NewState=(.+)");
@@ -163,6 +165,7 @@ namespace TrevorTest
                                     Console.WriteLine("Server timer passed threshold: {0:F2} minutes", serverTimeDiff.TotalMinutes);
                                 }
                             }
+                            Console.WriteLine($"Execution took: {sw.Elapsed}");
                         }
                         else
                         {
