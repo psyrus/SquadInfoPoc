@@ -52,7 +52,6 @@ namespace TrevorTest
             // Open File
             // Loop through each line of the file
             Match m;
-            Stopwatch sw = Stopwatch.StartNew();
             try
             {
                 
@@ -68,10 +67,10 @@ namespace TrevorTest
                     {
                         Console.WriteLine("This is the start of the file!");
                     }
-                    for(int i = 0; i < 40; i++)
-                    {
-                        line = sr.ReadLine();
-                    }
+                    // for(int i = 0; i < 40; i++)
+                    // {
+                    //     line = sr.ReadLine();
+                    // }
                     while (true)
                     {
                         LStart:
@@ -213,7 +212,6 @@ namespace TrevorTest
                                     Console.WriteLine("Server timer passed threshold: {0:F2} minutes", serverTimeDiff.TotalMinutes);
                                 }
                             }
-                            Console.WriteLine($"Execution took: {sw.Elapsed}");
                         }
                         else
                         {
