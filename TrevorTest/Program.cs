@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 using System.Threading; // needed for AutoResetEvent FileSystemWatcher stuff
 
@@ -18,7 +19,12 @@ namespace TrevorTest
             var fsw = new FileSystemWatcher(".");
             fsw.Filter = "log_big.log";
             fsw.EnableRaisingEvents = true;
-            fsw.Changed += (s,e) => wh.Set();
+            fsw.Changed += (s, e) => {
+                if(e.ChangeType == WatcherChangeTypes.Changed)
+                {
+                    wh.Set();
+                }
+            };
 
             Regex playersCount = new Regex(@"\[(.*?)\]\[.*?\].*?LogDiscordRichPresence: Number of players changed to (\d+)");
             Regex playerStatus = new Regex(@"\[(.*?)\]\[.*?\].*?ASQPlayerController::ChangeState\(\): PC=(.*?) OldState=(.*?) NewState=(.+)");
@@ -38,9 +44,12 @@ namespace TrevorTest
             bool serverTimerStarted = false;
             bool serverChanged = false;
 
+            int loc = 0;
+
             TimeSpan playerTimeDiff;
             TimeSpan serverTimeDiff;
 
+            Stopwatch sw = Stopwatch.StartNew();
             // Open File
             // Loop through each line of the file
             Match m;
@@ -58,6 +67,10 @@ namespace TrevorTest
                     {
                         Console.WriteLine("This is the start of the file!");
                     }
+                    for(int i = 0; i < 40; i++)
+                    {
+                        line = sr.ReadLine();
+                    }
                     while (true)
                     {
                         LStart:
@@ -67,46 +80,85 @@ namespace TrevorTest
                             serverChanged = false;
 
                             //Check latest player count
-                            m = playersCount.Match(line);
-                            // latestPlayerCount = m.Success ? int.Parse(m.Groups[2].Value) : latestPlayerCount;
-                            if (m.Success)
+                            try
                             {
-                                latestPlayerCount = int.Parse(m.Groups[2].Value);
-                                eventTime = m.Groups[1].Value;
-                                Console.Write($"Time: {eventTime} ");
-                                Console.WriteLine($"Player Count Changed: {latestPlayerCount}");
-                                playerThreshold = latestPlayerCount >= numPlayerLoggingThreshold ? true : false; // do something here with the timer starting I guess
-                                goto TimerStuff;
-                                // continue;
+                                // Do a rudimentary "string in string" search, skipping the timestamp
+                                loc = line.IndexOf("LogDiscord", 29);
+                                // if the string is found
+                                if (loc != -1)
+                                {
+                                    // Do a more thorough regexp search
+                                    m = playersCount.Match(line);
+                                    if (m.Success)
+                                    {
+                                        latestPlayerCount = int.Parse(m.Groups[2].Value);
+                                        eventTime = m.Groups[1].Value;
+                                        Console.Write($"Time: {eventTime} ");
+                                        Console.WriteLine($"Player Count Changed: {latestPlayerCount}");
+                                        playerThreshold = latestPlayerCount >= numPlayerLoggingThreshold ? true : false; // do something here with the timer starting I guess
+                                        goto TimerStuff;
+                                        // continue;
+                                    }
+                                }
                             }
-
+                            // Without this exception handling, the script crashes on a short line like "Script call stack:" (example on line 605)
+                            catch (ArgumentOutOfRangeException e)
+                            {
+                                // Console.WriteLine(e.Message);
+                                // Console.ReadLine();
+                            }
+                            
                             //Check player status
-                            m = playerStatus.Match(line);
-                            // latestPlayerStatus = m.Success ? GetStatus(m.Groups[4].Value) : latestPlayerStatus;
-                            if (m.Success)
+                            try
                             {
-                                latestPlayerStatus = GetStatus(m.Groups[4].Value);
-                                eventTime = m.Groups[1].Value;
-                                Console.Write($"Time: {eventTime} ");
-                                Console.WriteLine($"Player Status Changed: {latestPlayerStatus}");
-                                goto TimerStuff;
-                                // continue;
+                                loc = line.IndexOf("ASQPlayerController", 29);
+                                // if the string is found
+                                if (loc != -1)
+                                {
+                                    m = playerStatus.Match(line);
+                                    if (m.Success)
+                                    {
+                                        latestPlayerStatus = GetStatus(m.Groups[4].Value);
+                                        eventTime = m.Groups[1].Value;
+                                        Console.Write($"Time: {eventTime} ");
+                                        Console.WriteLine($"Player Status Changed: {latestPlayerStatus}");
+                                        goto TimerStuff;
+                                        // continue;
+                                    }
+                                }
                             }
-
+                            catch (ArgumentOutOfRangeException e)
+                            {
+                                // Console.WriteLine(e.Message);
+                                // Console.ReadLine();
+                            }
+                            
                             //Check joined server
-                            m = serverName.Match(line);
-                            // latestServerName = m.Success ? m.Groups[2].Value : latestServerName;
-                            if (m.Success)
+                            try
                             {
-                                latestServerName = m.Groups[2].Value;
-                                eventTime = m.Groups[1].Value;
-                                Console.Write($"Time: {eventTime} ");
-                                Console.WriteLine($"Server Changed: {latestServerName}");
-                                serverChanged = true;
-                                goto TimerStuff;
-                                // continue;
+                                loc = line.IndexOf("Change server name", 29);
+                                // if the string is found
+                                if (loc != -1)
+                                {
+                                    m = serverName.Match(line);
+                                    if (m.Success)
+                                    {
+                                        latestServerName = m.Groups[2].Value;
+                                        eventTime = m.Groups[1].Value;
+                                        Console.Write($"Time: {eventTime} ");
+                                        Console.WriteLine($"Server Changed: {latestServerName}");
+                                        serverChanged = true;
+                                        goto TimerStuff;
+                                        // continue;
+                                    }
+                                }
                             }
-
+                            catch (ArgumentOutOfRangeException e)
+                            {
+                                // Console.WriteLine(e.Message);
+                                // Console.ReadLine();
+                            }
+                            
                             goto LStart;
 
                             TimerStuff:
@@ -165,11 +217,16 @@ namespace TrevorTest
                         {
                             // Sleep for one second (?)
                             wh.WaitOne(1000);
+                            Console.WriteLine("End");
+                            // Just for testing, when you reach the EOF, break out of the loop (don't tail)
+                            break;
                         }
                     }
                 }
 
                 Console.WriteLine("This is the end of the file!");
+
+                Console.WriteLine($"Execution took: {sw.Elapsed}");
 
                 //close the file
                 // sr.Close();
