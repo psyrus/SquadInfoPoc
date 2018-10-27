@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
@@ -9,10 +10,8 @@ namespace TrevorTest
 {
     class Program
     {
-
         static void Main(string[] args)
         {
-
             // info on 'tail'ing a file
             // https://stackoverflow.com/questions/3791103/c-sharp-continuously-read-file
             var wh = new AutoResetEvent(false); // Notifies a waiting thread that an event has occured
@@ -53,8 +52,10 @@ namespace TrevorTest
             // Open File
             // Loop through each line of the file
             Match m;
+            Stopwatch sw = Stopwatch.StartNew();
             try
             {
+                
                 //Pass the file path and file name to the StreamReader constructor
                 // StreamReader sr = new StreamReader("log_big.log");
                 var fs = new FileStream("log_big.log", FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -212,6 +213,7 @@ namespace TrevorTest
                                     Console.WriteLine("Server timer passed threshold: {0:F2} minutes", serverTimeDiff.TotalMinutes);
                                 }
                             }
+                            Console.WriteLine($"Execution took: {sw.Elapsed}");
                         }
                         else
                         {
@@ -222,7 +224,7 @@ namespace TrevorTest
                             break;
                         }
                     }
-                }
+               }
 
                 Console.WriteLine("This is the end of the file!");
 
@@ -240,6 +242,12 @@ namespace TrevorTest
             finally
             {
                 Console.WriteLine("Executing finally block.");
+                sw.Stop();
+                Console.WriteLine($"Latest Player Count: {latestPlayerCount}");
+                Console.WriteLine($"Latest Player Status: {latestPlayerStatus.ToString()}");
+                Console.WriteLine($"Latest Server: {latestServerName}");
+                Console.WriteLine($"Execution took: {sw.Elapsed}");
+                Console.ReadLine();
             }
         }
 
