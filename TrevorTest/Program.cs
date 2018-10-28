@@ -73,9 +73,9 @@ namespace TrevorTest
                             // Basically you reference functions kind of like the labels, and that way there don't have to be long if-else blocks anywhere
                             // https://stackoverflow.com/a/27215922
                             var TryFunctions = new Func<string, bool>[] {
-                                n => TryGetPlayersCount(line),
-                                n => TryGetPlayerStatus(line),
-                                n => TryGetServerName(line)
+                                n => TryGetPlayersCount(n),
+                                n => TryGetPlayerStatus(n),
+                                n => TryGetServerName(n)
                             };
 
                             // Loop through the functions, if one of the functions returns true, update the timer and then skip the rest of the functions for this line.
