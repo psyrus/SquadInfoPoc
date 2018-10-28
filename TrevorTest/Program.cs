@@ -16,13 +16,16 @@ namespace TrevorTest
         #region Globals
         private static Regex playersCount = new Regex(@"\[(.*?)\]\[.*?\].*?LogDiscordRichPresence: Number of players changed to (\d+)");
         private static Regex playerStatus = new Regex(@"\[(.*?)\]\[.*?\].*?ASQPlayerController::ChangeState\(\): PC=(.*?) OldState=(.*?) NewState=(.+)");
-        private static Regex serverName = new Regex(@"\[(.*?)\]\[.*?\].*?Change server name command received.  Server name is (.+)");
+        private static Regex serverName = new Regex(@"\[(.*?)\]\[.*?\].*?Change server name command received\.  Server name is (.+)");
+        private static Regex mapName = new Regex(@"\[(.*?)\]\[.*?\].*?LogDiscordRichPresence: Change Map command received\.  Map name is (EntryMap|.+?_)");
+
         private static int latestPlayerCount = 0;
         private static PlayerStatus latestPlayerStatus;
         private static string latestServerName;
+        private static string latestMapName;
         private static string eventTime;
 
-        private static bool serverChanged = false;
+        private static bool mapChanged = false;
         private static DateTime playersThresholdTimer = DateTime.MinValue;
         private static DateTime serverChangedTimer = DateTime.MinValue;
         private static DateTime timeNow = DateTime.MinValue;
@@ -65,7 +68,7 @@ namespace TrevorTest
 
                         if (line != null)
                         {
-                            serverChanged = false;
+                            mapChanged = false;
 
                             bool shouldUpdateTimer = false;
 
@@ -75,7 +78,8 @@ namespace TrevorTest
                             var TryFunctions = new Func<string, bool>[] {
                                 n => TryGetPlayersCount(n),
                                 n => TryGetPlayerStatus(n),
-                                n => TryGetServerName(n)
+                                n => TryGetServerName(n),
+                                n => TryGetMapName(n)
                             };
 
                             // Loop through the functions, if one of the functions returns true, update the timer and then skip the rest of the functions for this line.
@@ -149,13 +153,13 @@ namespace TrevorTest
             }
 
             // If we haven't changed server
-            if (!serverChanged && !serverTimerStarted)
+            if (!mapChanged && !serverTimerStarted)
             {
                 DateTime.TryParseExact(eventTime, "yyyy.MM.dd-HH.mm.ss:fff", null, System.Globalization.DateTimeStyles.AllowWhiteSpaces, out serverChangedTimer);
                 Console.WriteLine("Server timer started");
             }
             // If we've changed server recently
-            else if (serverChanged && serverTimerStarted)
+            else if (mapChanged && serverTimerStarted)
             {
                 serverChangedTimer = DateTime.MinValue;
                 serverTimerStarted = false;
@@ -240,10 +244,32 @@ namespace TrevorTest
                 eventTime = m.Groups[1].Value;
                 Console.Write($"Time: {eventTime} ");
                 Console.WriteLine($"Server Changed: {latestServerName}");
-                serverChanged = true;
             }
             return m.Success;
         }
+
+        private static bool TryGetMapName(string line)
+        {
+
+            if (line.Length <= TIMESTAMP_OFFSET || line.IndexOf("Change Map command", TIMESTAMP_OFFSET) == -1)
+
+            {
+                return false;
+            }
+
+            // Do a more thorough regexp search
+            Match m = mapName.Match(line);
+            if (m.Success)
+            {
+                latestMapName = m.Groups[2].Value.TrimEnd('_');
+                eventTime = m.Groups[1].Value;
+                Console.Write($"Time: {eventTime} ");
+                Console.WriteLine($"Map Changed: {latestMapName}");
+                mapChanged = true;
+            }
+            return m.Success;
+        }
+
         #endregion
     }
 
