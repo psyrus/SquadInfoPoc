@@ -2,30 +2,31 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
-
 using System.Threading; // needed for AutoResetEvent FileSystemWatcher stuff
 
 namespace TrevorTest
 {
     internal class Program
     {
+        #region Constants
+        private const int TIMESTAMP_OFFSET = 29;
+        private const int PLAYER_LOGGING_THRESHOLD = 70; // Number of players at which to start logging the FPS
+        #endregion
+
+        #region Globals
         private static Regex playersCount = new Regex(@"\[(.*?)\]\[.*?\].*?LogDiscordRichPresence: Number of players changed to (\d+)");
         private static Regex playerStatus = new Regex(@"\[(.*?)\]\[.*?\].*?ASQPlayerController::ChangeState\(\): PC=(.*?) OldState=(.*?) NewState=(.+)");
         private static Regex serverName = new Regex(@"\[(.*?)\]\[.*?\].*?Change server name command received.  Server name is (.+)");
         private static int latestPlayerCount = 0;
-        private static PlayerStatus latestPlayerStatus = PlayerStatus.Inactive;
-        private static string latestServerName = "Menu";
-        private static int numPlayerLoggingThreshold = 70; // Number of players at which to start logging the FPS
-        private static string eventTime = "0:0";
-        private static bool playerThreshold = false;
-        private static bool playerTimerStarted = false;
-        private static bool serverTimerStarted = false;
+        private static PlayerStatus latestPlayerStatus;
+        private static string latestServerName;
+        private static string eventTime;
+
         private static bool serverChanged = false;
-        private static DateTime playersThresholdTimer = new DateTime(2000, 01, 01, 01, 01, 01);
-        private static DateTime serverChangedTimer = new DateTime(2000, 01, 01, 01, 01, 01);
-        private static DateTime timeNow = new DateTime(2001, 02, 02, 02, 02, 02);
-        private static TimeSpan playerTimeDiff;
-        private static TimeSpan serverTimeDiff;
+        private static DateTime playersThresholdTimer = DateTime.MinValue;
+        private static DateTime serverChangedTimer = DateTime.MinValue;
+        private static DateTime timeNow = DateTime.MinValue;
+        #endregion
 
         private static void Main(string[] args)
         {
@@ -42,12 +43,11 @@ namespace TrevorTest
                     wh.Set();
                 }
             };
-
             Stopwatch sw = Stopwatch.StartNew();
             // Open File
             // Loop through each line of the file
             try
-            {   
+            {
                 // Open log file and loop over it to evalute lines
                 // TODO: Not sure that the FileStream -> StreamReader is absolutely necessary
                 using (var sr = new StreamReader(new FileStream("log_big.log", FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
@@ -60,11 +60,13 @@ namespace TrevorTest
 
                     while (true)
                     {
+
                         line = sr.ReadLine();
+
                         if (line != null)
                         {
                             serverChanged = false;
-                            
+
                             bool shouldUpdateTimer = false;
 
                             // This is kind of a hacky way to do this, but I didn't want to lose *any* of the goto optimizations if possible, so this was the cleanest way that I could find.
@@ -83,7 +85,7 @@ namespace TrevorTest
                                 shouldUpdateTimer = TryFunctions[i](line);
                                 if (shouldUpdateTimer)
                                 {
-                                    UpdateTimer(line);
+                                    UpdateTimers();
                                     break;
                                 }
                             }
@@ -100,7 +102,7 @@ namespace TrevorTest
                 }
 
                 Console.WriteLine("This is the end of the file!");
-
+                sw.Stop();
                 Console.WriteLine($"Execution took: {sw.Elapsed}");
 
                 //close the file
@@ -115,7 +117,7 @@ namespace TrevorTest
             finally
             {
                 Console.WriteLine("Executing finally block.");
-                sw.Stop();
+
                 Console.WriteLine($"Latest Player Count: {latestPlayerCount}");
                 Console.WriteLine($"Latest Player Status: {latestPlayerStatus.ToString()}");
                 Console.WriteLine($"Latest Server: {latestServerName}");
@@ -124,20 +126,24 @@ namespace TrevorTest
             }
         }
 
-        private static void UpdateTimer(string line)
+        private static void UpdateTimers()
         {
+            bool playerThreshold = latestPlayerCount >= PLAYER_LOGGING_THRESHOLD;
+            bool playerTimerStarted = playersThresholdTimer > DateTime.MinValue;
+            bool serverTimerStarted = serverChangedTimer > DateTime.MinValue;
+
             // If we've just hit the player threshold
             if (playerThreshold && !playerTimerStarted)
             {
                 // Parse the log's timestamp and format it to a DateTime object
                 DateTime.TryParseExact(eventTime, "yyyy.MM.dd-HH.mm.ss:fff", null, System.Globalization.DateTimeStyles.AllowWhiteSpaces, out playersThresholdTimer);
-                playerTimerStarted = true;
                 Console.WriteLine("Player count timer started");
             }
 
             // Players dropped below threshold, stop the timer
             else if (!playerThreshold && playerTimerStarted)
             {
+                playersThresholdTimer = DateTime.MinValue;
                 playerTimerStarted = false;
                 Console.WriteLine("Player count timer reset");
             }
@@ -146,12 +152,12 @@ namespace TrevorTest
             if (!serverChanged && !serverTimerStarted)
             {
                 DateTime.TryParseExact(eventTime, "yyyy.MM.dd-HH.mm.ss:fff", null, System.Globalization.DateTimeStyles.AllowWhiteSpaces, out serverChangedTimer);
-                serverTimerStarted = true;
                 Console.WriteLine("Server timer started");
             }
             // If we've changed server recently
             else if (serverChanged && serverTimerStarted)
             {
+                serverChangedTimer = DateTime.MinValue;
                 serverTimerStarted = false;
                 Console.WriteLine("Server timer reset");
             }
@@ -159,9 +165,9 @@ namespace TrevorTest
             // Get the time, in minutes, that both timers have been running
             if (playerTimerStarted && serverTimerStarted)
             {
-                DateTime.TryParseExact(eventTime, "yyyy.MM.dd-HH.mm.ss:fff", null, System.Globalization.DateTimeStyles.AllowWhiteSpaces, out timeNow);
-                playerTimeDiff = timeNow - playersThresholdTimer;
-                serverTimeDiff = timeNow - serverChangedTimer;
+                DateTime timeNow = DateTime.ParseExact(eventTime, "yyyy.MM.dd-HH.mm.ss:fff", null, System.Globalization.DateTimeStyles.AllowWhiteSpaces);
+                TimeSpan playerTimeDiff = timeNow - playersThresholdTimer;
+                TimeSpan serverTimeDiff = timeNow - serverChangedTimer;
                 if (playerTimeDiff.TotalMinutes > 2)
                 {
                     Console.WriteLine("Player timer passed threshold: {0:F2} minutes", playerTimeDiff.TotalMinutes);
@@ -178,11 +184,12 @@ namespace TrevorTest
             return value == "Playing" ? PlayerStatus.Active : PlayerStatus.Inactive;
         }
 
+        #region Regex Checking Functions
         private static bool TryGetPlayersCount(string line)
         {
 
             // Do a rudimentary "string in string" search, skipping the timestamp
-            if (line.Length <= 29 || line.IndexOf("LogDiscord", 29) == -1)
+            if (line.Length <= TIMESTAMP_OFFSET || line.IndexOf("LogDiscord", TIMESTAMP_OFFSET) == -1)
             {
                 return false;
             }
@@ -194,15 +201,13 @@ namespace TrevorTest
                 eventTime = m.Groups[1].Value;
                 Console.Write($"Time: {eventTime} ");
                 Console.WriteLine($"Player Count Changed: {latestPlayerCount}");
-                playerThreshold = latestPlayerCount >= numPlayerLoggingThreshold ? true : false; // do something here with the timer starting I guess
             }
-            return true;
-
+            return m.Success;
         }
         private static bool TryGetPlayerStatus(string line)
         {
             // Do a rudimentary "string in string" search, skipping the timestamp
-            if (line.Length <= 29 || line.IndexOf("ASQPlayerController", 29) == -1)
+            if (line.Length <= TIMESTAMP_OFFSET || line.IndexOf("ASQPlayerController", TIMESTAMP_OFFSET) == -1)
             {
                 return false;
             }
@@ -217,12 +222,12 @@ namespace TrevorTest
                 Console.WriteLine($"Player Status Changed: {latestPlayerStatus}");
 
             }
-            return true;
+            return m.Success;
         }
         private static bool TryGetServerName(string line)
         {
             // Do a rudimentary "string in string" search, skipping the timestamp
-            if (line.Length <= 29 || line.IndexOf("Change server name", 29) == -1)
+            if (line.Length <= TIMESTAMP_OFFSET || line.IndexOf("Change server name", TIMESTAMP_OFFSET) == -1)
             {
                 return false;
             }
@@ -237,9 +242,9 @@ namespace TrevorTest
                 Console.WriteLine($"Server Changed: {latestServerName}");
                 serverChanged = true;
             }
-            return true;
+            return m.Success;
         }
-
+        #endregion
     }
 
     internal enum PlayerStatus
