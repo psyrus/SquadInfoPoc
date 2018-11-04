@@ -112,7 +112,7 @@ namespace LogReader
 			int players = Convert.ToInt32(serverDetails.GetType().GetProperty("PlayerCount").GetValue(serverDetails, null));
 
 			//Check that a server and game map has been selected
-			if (server != null && (map != null || map != "EntryMap"))
+			if (server != null && (map != null || map != "EntryMap") && players >= 70)
 			{
 				SetCountdownTimer();
 			}
@@ -135,9 +135,8 @@ namespace LogReader
 		{
 			int players = Convert.ToInt32(serverDetails.GetType().GetProperty("PlayerCount").GetValue(serverDetails, null));
 
-			//Reduce seconds counter if the offset timer is running or if the capture timer is 
-			//running with 70 or more players
-			if (offsetComplete == false || (offsetComplete == true && players >= 70))
+			//Reduces seconds only if 70 or more players are present
+			if(players >= 70)
 			{
 				seconds--;
 			}
@@ -159,17 +158,26 @@ namespace LogReader
 		private static void ManageCoundownConditions()
 		{
 			int players = Convert.ToInt32(serverDetails.GetType().GetProperty("PlayerCount").GetValue(serverDetails, null));
+			String currStatus = (serverDetails.GetType().GetProperty("PlayerStatus").GetValue(serverDetails, null)).ToString();
 
-			//Capture FPS if enough players are present
-			if (offsetComplete == true)
+			//Capture FPS if enough players are present and user is activly playing in the match
+			if (players >= 70)
 			{
-				if (players >= 70)
+				if (offsetComplete == true && currStatus == "Playing")
 				{
 					Console.WriteLine("FPS is being captured");
+				}
+			}
+			else
+			{
+				if (offsetComplete == false)
+				{
+					seconds = offsetSeconds;
 				}
 				else
 				{
 					Console.WriteLine("FPS capture has stopped");
+					seconds = captureTimerSeconds;
 				}
 			}
 
