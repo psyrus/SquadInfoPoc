@@ -13,65 +13,27 @@ namespace LogReader
 {
 	class Program
 	{	
-		//TODO: Write algorithm to start the capture timer only if 70 or more players are present
-		//TODO: Write condition to reset and stop capture timer if players fall below 70
 		//Application global variables 
 		private static Timer countdownTimer;
 		private static int seconds;
 		private const int offsetSeconds = 5; //***Will be 120 seconds after testing
 		private const int captureTimerSeconds = 10; //***Will be 300 seconds after testing
 		private static bool offsetComplete = false;
-		private static Object serverDetails = GetLogInfo();
+		private static Object serverDetails;
 
-		//***Test output variables***
+		//***Debugging output variables***
 		private static int lineCounter = 0;
 		private static int totalLines = 0;
 		private static double totalTime;
 
 		static void Main(string[] args)
 		{
-			//***For populating the testing output fields***
-			GetLogInfo();
-
-			String server = (serverDetails.GetType().GetProperty("ServerName").GetValue(serverDetails, null)).ToString();
-			String map = (serverDetails.GetType().GetProperty("MapName").GetValue(serverDetails, null)).ToString();
-			
-			//Check that a server and game map has been selected
-			if (server != null && (map != null || map != "EntryMap"))
-			{
-				CountdownTimer();
-			}
+			//Get log details
+			serverDetails = GetLogInfo();
 
 			Console.ReadKey();
 		}
-		private static void ConsoleOutputer()
-		{
-			String server = (serverDetails.GetType().GetProperty("ServerName").GetValue(serverDetails, null)).ToString();
-			String map = (serverDetails.GetType().GetProperty("MapName").GetValue(serverDetails, null)).ToString();
-			int players = Convert.ToInt32(serverDetails.GetType().GetProperty("PlayerCount").GetValue(serverDetails, null));
-			String prevStatus = (serverDetails.GetType().GetProperty("PrevStatus").GetValue(serverDetails, null)).ToString();
-			String currStatus = (serverDetails.GetType().GetProperty("PlayerStatus").GetValue(serverDetails, null)).ToString();
 
-			//Generate FPS data average
-			int[] sampleFPS = generateFPSData();
-			double average = Sum(sampleFPS) / sampleFPS.Length;
-
-			//Test Output
-			Console.WriteLine("");
-			Console.WriteLine("Start of File...");
-			Console.WriteLine("");
-			Console.WriteLine("Server Name: {0}", server);
-			Console.WriteLine("Map Name: {0}", map);
-			Console.WriteLine("Current players on server: {0}", players);
-			Console.WriteLine("Player's previous status: {0}", prevStatus);
-			Console.WriteLine("Player's current status: {0}", currStatus);
-			Console.WriteLine("Player's current FPS: {0}", average);
-			Console.WriteLine("");
-			Console.WriteLine("Matched {0} lines in the log...", lineCounter);
-			Console.WriteLine("Processed {0} total lines in the log...", totalLines);
-			Console.WriteLine("Total Time is: {0} seconds", totalTime);
-			Console.WriteLine("Press any key to continue...");
-		}
 		//Prototype log reader
 		private static Object GetLogInfo()
 		{
@@ -115,6 +77,7 @@ namespace LogReader
 					if (serverDetails.MapName != null && serverDetails.MapName != userMap.Groups[1].Value)
 					{
 						seconds = offsetSeconds;
+						offsetComplete = false;
 						//TODO: Call function to stop recording and clear caputured data
 					}
 					mapName = userMap.Groups[1].Value;
@@ -144,28 +107,43 @@ namespace LogReader
 			totalTime = execTimer.ElapsedMilliseconds;
 			totalTime /= 1000;
 
-			return serverDetails;
+			String server = (serverDetails.GetType().GetProperty("ServerName").GetValue(serverDetails, null)).ToString();
+			String map = (serverDetails.GetType().GetProperty("MapName").GetValue(serverDetails, null)).ToString();
+			int players = Convert.ToInt32(serverDetails.GetType().GetProperty("PlayerCount").GetValue(serverDetails, null));
 
+			//Check that a server and game map has been selected
+			if (server != null && (map != null || map != "EntryMap"))
+			{
+				SetCountdownTimer();
+			}
+
+			return serverDetails;
 		}
-		//Prototype timer
-		private static void CountdownTimer()
+
+		//Prototype countdown timer
+		private static void SetCountdownTimer()
 		{
 			countdownTimer = new Timer();
 			countdownTimer.Interval = 1000;
 			countdownTimer.Elapsed += TickManager;
 			countdownTimer.AutoReset = true;
 			countdownTimer.Enabled = true;
-
 		}
+
 		//Prototype timer tick manager
 		private static void TickManager(object source, ElapsedEventArgs e)
 		{
 			int players = Convert.ToInt32(serverDetails.GetType().GetProperty("PlayerCount").GetValue(serverDetails, null));
 
-			seconds--;
-			
-			//***Output timer for testing***
-			if(offsetComplete == false)
+			//Reduce seconds counter if the offset timer is running or if the capture timer is 
+			//running with 70 or more players
+			if (offsetComplete == false || (offsetComplete == true && players >= 70))
+			{
+				seconds--;
+			}
+
+			//***Output timer for debugging***
+			if (offsetComplete == false)
 			{
 				Console.WriteLine("The offset timer has {0} seconds remaining", seconds);
 			}
@@ -174,13 +152,28 @@ namespace LogReader
 				Console.WriteLine("The capture timer has {0} seconds remaining", seconds);
 			}
 
-			//Resets the capture timer if players are less than 70 
-			if (offsetComplete == true && players < 70)
+			ManageCoundownConditions();
+		}
+
+		//Prototype to manage counter conditions
+		private static void ManageCoundownConditions()
+		{
+			int players = Convert.ToInt32(serverDetails.GetType().GetProperty("PlayerCount").GetValue(serverDetails, null));
+
+			//Capture FPS if enough players are present
+			if (offsetComplete == true)
 			{
-				seconds = captureTimerSeconds;
+				if (players >= 70)
+				{
+					Console.WriteLine("FPS is being captured");
+				}
+				else
+				{
+					Console.WriteLine("FPS capture has stopped");
+				}
 			}
 
-
+			//Determine next action when timer hits zero
 			if (seconds == 0)
 			{
 				//Start the capture timer upon completion of the offset timer
@@ -190,7 +183,7 @@ namespace LogReader
 					seconds = captureTimerSeconds;
 				}
 				//End the capture timer and end the program
-				else if(offsetComplete == true)
+				else if (offsetComplete == true)
 				{
 					countdownTimer.Enabled = false;
 					ConsoleOutputer();
@@ -232,7 +225,38 @@ namespace LogReader
 			return fpsArray;
 		}
 
+		//Output to the console
+		private static void ConsoleOutputer()
+		{
+			String server = (serverDetails.GetType().GetProperty("ServerName").GetValue(serverDetails, null)).ToString();
+			String map = (serverDetails.GetType().GetProperty("MapName").GetValue(serverDetails, null)).ToString();
+			int players = Convert.ToInt32(serverDetails.GetType().GetProperty("PlayerCount").GetValue(serverDetails, null));
+			String prevStatus = (serverDetails.GetType().GetProperty("PrevStatus").GetValue(serverDetails, null)).ToString();
+			String currStatus = (serverDetails.GetType().GetProperty("PlayerStatus").GetValue(serverDetails, null)).ToString();
+
+			//Generate FPS data average
+			int[] sampleFPS = generateFPSData();
+			double average = Sum(sampleFPS) / sampleFPS.Length;
+
+			//Test Output
+			Console.WriteLine("");
+			Console.WriteLine("Start of File...");
+			Console.WriteLine("");
+			Console.WriteLine("Server Name: {0}", server);
+			Console.WriteLine("Map Name: {0}", map);
+			Console.WriteLine("Current players on server: {0}", players);
+			Console.WriteLine("Player's previous status: {0}", prevStatus);
+			Console.WriteLine("Player's current status: {0}", currStatus);
+			Console.WriteLine("Player's current FPS: {0}", average);
+			Console.WriteLine("");
+			Console.WriteLine("Matched {0} lines in the log...", lineCounter);
+			Console.WriteLine("Processed {0} total lines in the log...", totalLines);
+			Console.WriteLine("Total Time is: {0} seconds", totalTime);
+			Console.WriteLine("");
+			Console.WriteLine("Press any key to continue...");
+		}
 	}
+
 	public class LogData
 	{
 		public string ServerName { get; set; }
